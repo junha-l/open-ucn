@@ -53,10 +53,10 @@ def dump_feature(config):
     F = model(to_normalized_torch(img, device))
     filename = f'{img_path}.{desc_name}.h5'
     F = F[0]
-    F = F.permute(1, 2, 0)
+    F = F.permute(2, 1, 0)
 
-    ny, nx, nc = F.shape
-    kp = np.asarray(list(itertools.product(np.arange(ny), np.arange(nx))))
+    nx, ny, nc = F.shape
+    kp = np.asarray(list(itertools.product(np.arange(nx), np.arange(ny))))
     desc = F.reshape(-1, nc).cpu().numpy()
 
     kp = random_sample(kp, num_kp)
