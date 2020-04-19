@@ -22,7 +22,7 @@
 # SOFTWARE.
 import torch
 import numpy as np
-
+import faiss
 from scipy.spatial import cKDTree
 
 
@@ -51,6 +51,18 @@ def find_nn_cpu(feat0, feat1, return_distance=False):
   else:
     return nn_inds
 
+def find_nn_faiss(F0, F1):
+  D = F0.shape[0]
+
+  _F0 = F0.permute(1,2,0).reshape(-1,D)
+  _F1 = F1.permute(1,2,0).reshape(-1,D)
+
+  index = faiss.IndexFlatL2(D)
+  index = faiss.index_cpu_to_all_gpus(index)
+  index.add(_F0)
+
+  dist_list, idx_list = index.search(_F1, 1)
+  return idx_list[:, 0]
 
 def find_nn_gpu(F0, F1, nn_max_n=-1, return_distance=False, dist_type='SquareL2', transposed=False):
   """

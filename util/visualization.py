@@ -25,7 +25,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import lib.util_2d as util_2d
-from lib.eval import find_nn_gpu
+from lib.eval import find_nn_gpu, find_nn_faiss
 from util.file import ensure_dir
 
 
@@ -121,11 +121,12 @@ def visualize_image_correspondence(img0,
     mask = dist_sq_nn < (config.ucn_inlier_threshold_pixel**2)
 
   elif mode == 'gpu-all':
-    nn_inds1 = find_nn_gpu(
-        F0[:, y0, x0],
-        F1.view(F1.shape[0], -1),
-        nn_max_n=config.nn_max_n,
-        transposed=True).numpy()
+    nn_inds1 = find_nn_faiss(F0[:, y0, x0], F1)
+    # nn_inds1 = find_nn_gpu(
+    #     F0[:, y0, x0],
+    #     F1.view(F1.shape[0], -1),
+    #     nn_max_n=config.nn_max_n,
+    #     transposed=True).numpy()
 
     # Convert the index to coordinate: BxCxHxW
     xs1 = nn_inds1 % W1
@@ -142,11 +143,12 @@ def visualize_image_correspondence(img0,
       ys1n = ys1
 
     # Test reciprocity
-    nn_inds0 = find_nn_gpu(
-        F1[:, ys1n, xs1n],
-        F0.view(F0.shape[0], -1),
-        nn_max_n=config.nn_max_n,
-        transposed=True)
+    nn_inds0 = find_nn_faiss(F1[:, ys1n, xs1n], F0)
+    # nn_inds0 = find_nn_gpu(
+    #     F1[:, ys1n, xs1n],
+    #     F0.view(F0.shape[0], -1),
+    #     nn_max_n=config.nn_max_n,
+    #     transposed=True)
 
     # Convert the index to coordinate: BxCxHxW
     xs0 = (nn_inds0 % W0).numpy()
@@ -157,11 +159,12 @@ def visualize_image_correspondence(img0,
     mask = dist_sq_nn < (config.ucn_inlier_threshold_pixel**2)
 
   elif mode == 'gpu-all-all':
-    nn_inds1 = find_nn_gpu(
-        F0.view(F0.shape[0], -1),
-        F1.view(F1.shape[0], -1),
-        nn_max_n=config.nn_max_n,
-        transposed=True).numpy()
+    nn_inds1 = find_nn_faiss(F0, F1)
+    # nn_inds1 = find_nn_gpu(
+    #     F0.view(F0.shape[0], -1),
+    #     F1.view(F1.shape[0], -1),
+    #     nn_max_n=config.nn_max_n,
+    #     transposed=True).numpy()
 
     inds0 = np.arange(len(nn_inds1))
     x0 = inds0 % W0
@@ -181,11 +184,12 @@ def visualize_image_correspondence(img0,
       ys1n = ys1
 
     # Test reciprocity
-    nn_inds0 = find_nn_gpu(
-        F1[:, ys1n, xs1n],
-        F0.view(F0.shape[0], -1),
-        nn_max_n=config.nn_max_n,
-        transposed=True).numpy()
+    nn_inds0 = find_nn_faiss(F1[:, ys1n, xs1n], F0)
+    # nn_inds0 = find_nn_gpu(
+    #     F1[:, ys1n, xs1n],
+    #     F0.view(F0.shape[0], -1),
+    #     nn_max_n=config.nn_max_n,
+    #     transposed=True).numpy()
 
     # Convert the index to coordinate: BxCxHxW
     xs0 = nn_inds0 % W0
