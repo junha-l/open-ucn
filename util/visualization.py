@@ -48,7 +48,6 @@ def visualize_image_correspondence(img0,
     )
     kp0 = sift.detect(img0, None)
     kp1 = sift.detect(img1, None)
-    print(len(kp0), len(kp1))
     xy_kp0 = np.floor(np.array([k.pt for k in kp0]).T)
     xy_kp1 = np.floor(np.array([k.pt for k in kp1]).T)
     x0, y0 = xy_kp0[0], xy_kp0[1]
@@ -121,12 +120,10 @@ def visualize_image_correspondence(img0,
     mask = dist_sq_nn < (config.ucn_inlier_threshold_pixel**2)
 
   elif mode == 'gpu-all':
-    nn_inds1 = find_nn_faiss(F0[:, y0, x0], F1)
-    # nn_inds1 = find_nn_gpu(
-    #     F0[:, y0, x0],
-    #     F1.view(F1.shape[0], -1),
-    #     nn_max_n=config.nn_max_n,
-    #     transposed=True).numpy()
+    nn_inds1 = find_nn_faiss(
+        F0[:, y0, x0],
+        F1.view(F1.shape[0], -1),
+    )
 
     # Convert the index to coordinate: BxCxHxW
     xs1 = nn_inds1 % W1
@@ -143,28 +140,24 @@ def visualize_image_correspondence(img0,
       ys1n = ys1
 
     # Test reciprocity
-    nn_inds0 = find_nn_faiss(F1[:, ys1n, xs1n], F0)
-    # nn_inds0 = find_nn_gpu(
-    #     F1[:, ys1n, xs1n],
-    #     F0.view(F0.shape[0], -1),
-    #     nn_max_n=config.nn_max_n,
-    #     transposed=True)
+    nn_inds0 = find_nn_faiss(
+        F1[:, ys1n, xs1n],
+        F0.view(F0.shape[0], -1),
+    )
 
     # Convert the index to coordinate: BxCxHxW
-    xs0 = (nn_inds0 % W0).numpy()
-    ys0 = (nn_inds0 // W0).numpy()
+    xs0 = (nn_inds0 % W0)
+    ys0 = (nn_inds0 // W0)
 
     # Filter out the points that fail the cycle consistency
     dist_sq_nn = (x0 - xs0)**2 + (y0 - ys0)**2
     mask = dist_sq_nn < (config.ucn_inlier_threshold_pixel**2)
 
   elif mode == 'gpu-all-all':
-    nn_inds1 = find_nn_faiss(F0, F1)
-    # nn_inds1 = find_nn_gpu(
-    #     F0.view(F0.shape[0], -1),
-    #     F1.view(F1.shape[0], -1),
-    #     nn_max_n=config.nn_max_n,
-    #     transposed=True).numpy()
+    nn_inds1 = find_nn_faiss(
+        F0.view(F0.shape[0], -1),
+        F1.view(F1.shape[0], -1),
+    )
 
     inds0 = np.arange(len(nn_inds1))
     x0 = inds0 % W0
@@ -184,12 +177,10 @@ def visualize_image_correspondence(img0,
       ys1n = ys1
 
     # Test reciprocity
-    nn_inds0 = find_nn_faiss(F1[:, ys1n, xs1n], F0)
-    # nn_inds0 = find_nn_gpu(
-    #     F1[:, ys1n, xs1n],
-    #     F0.view(F0.shape[0], -1),
-    #     nn_max_n=config.nn_max_n,
-    #     transposed=True).numpy()
+    nn_inds0 = find_nn_faiss(
+        F1[:, ys1n, xs1n],
+        F0.view(F0.shape[0], -1),
+    )
 
     # Convert the index to coordinate: BxCxHxW
     xs0 = nn_inds0 % W0

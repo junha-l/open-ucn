@@ -54,14 +54,17 @@ def find_nn_cpu(feat0, feat1, return_distance=False):
 def find_nn_faiss(F0, F1):
   D = F0.shape[0]
 
-  _F0 = F0.permute(1,2,0).reshape(-1,D)
-  _F1 = F1.permute(1,2,0).reshape(-1,D)
+  _F0 = F0.permute(1,0).reshape(-1,D)
+  _F1 = F1.permute(1,0).reshape(-1,D)
+
+  _F0 = _F0.cpu().numpy()
+  _F1 = _F1.cpu().numpy()
 
   index = faiss.IndexFlatL2(D)
   index = faiss.index_cpu_to_all_gpus(index)
-  index.add(_F0)
+  index.add(_F1)
 
-  dist_list, idx_list = index.search(_F1, 1)
+  _, idx_list = index.search(_F0, 1)
   return idx_list[:, 0]
 
 def find_nn_gpu(F0, F1, nn_max_n=-1, return_distance=False, dist_type='SquareL2', transposed=False):

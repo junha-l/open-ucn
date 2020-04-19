@@ -53,8 +53,11 @@ def dump_correspondences(config):
     print("len dataset : ", len_dset)
 
     new_data = {}
-    new_data['ucn_coords'] = ofp.create_group('ucn_coords')
-    new_data['ucn_n_coords'] = ofp.create_group('ucn_n_coords')
+    keys = ['ucn_coords', 'ucn_n_coords']
+    for k in keys:
+      if k in ofp.keys():
+        del ofp[k]
+      new_data[k] = ofp.create_group(k)
 
     for i in range(len_dset):
       idx = str(i)
@@ -84,13 +87,10 @@ def dump_correspondences(config):
 
       # build correspondences
       x0, y0, x1, y1 = visualize_image_correspondence(
-          img0, img1, F0[0], F1[0], i, mode='gpu-all', config=config, visualize=False)
+          img0, img1, F0[0], F1[0], i, mode='gpu-all-all', config=config, visualize=False)
 
-      kp0 = np.stack((x0, y0), 1)
-      kp1 = np.stack((x1, y1), 1)
-
-      kp0 = random_sample(kp0, config.num_kp)
-      kp1 = random_sample(kp1, config.num_kp)
+      kp0 = np.stack((x0, y0), 1).astype(np.float32)
+      kp1 = np.stack((x1, y1), 1).astype(np.float32)
       norm_kp0 = normalize_keypoint(kp0, K0, imsize0 * 0.5)[:, :2]
       norm_kp1 = normalize_keypoint(kp1, K1, imsize1 * 0.5)[:, :2]
 
