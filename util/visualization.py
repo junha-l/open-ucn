@@ -35,7 +35,8 @@ def visualize_image_correspondence(img0,
                                    F1,
                                    filename,
                                    mode='gpu-all',
-                                   config=None):
+                                   config=None,
+                                   visualize=True):
   use_stability_test = True
   keypoint = 'sift'
   if keypoint == 'sift':
@@ -58,6 +59,12 @@ def visualize_image_correspondence(img0,
 
   H0, W0 = img0.shape
   H1, W1 = img1.shape
+
+  # if x0 is not None and len(x0) > config.num_kp:
+  #   mode = 'gpu-all'
+  # else:
+  #   mode = 'gpu-all-all'
+
   if mode == 'cpu-keypoints':
     matches1 = util_2d.feature_match(
         F0[:, y0, x0].t().cpu().numpy(),
@@ -188,20 +195,23 @@ def visualize_image_correspondence(img0,
     dist_sq_nn = (x0 - xs0)**2 + (y0 - ys0)**2
     mask = dist_sq_nn < (config.ucn_inlier_threshold_pixel**2)
 
-  color = x0[mask] + y0[mask] * W0
-  plt.clf()
-  fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2)
-  fig = plt.gcf()
-  fig.set_size_inches(9, 6)
+  if visualize:
+    color = x0[mask] + y0[mask] * W0
+    plt.clf()
+    fig, (ax0, ax1) = plt.subplots(nrows=1, ncols=2)
+    fig = plt.gcf()
+    fig.set_size_inches(9, 6)
 
-  ax0.imshow(img0 * 0.5, vmin=0, vmax=255, cmap='gray')
-  ax0.scatter(x=x0[mask], y=y0[mask], c=color, s=2, cmap="jet")
-  ax0.axis('off')
+    ax0.imshow(img0 * 0.5, vmin=0, vmax=255, cmap='gray')
+    ax0.scatter(x=x0[mask], y=y0[mask], c=color, s=2, cmap="jet")
+    ax0.axis('off')
 
-  ax1.imshow(img1 * 0.5, vmin=0, vmax=255, cmap='gray')
-  ax1.scatter(x=xs1[mask], y=ys1[mask], c=color, s=2, cmap="jet")
-  ax1.axis('off')
+    ax1.imshow(img1 * 0.5, vmin=0, vmax=255, cmap='gray')
+    ax1.scatter(x=xs1[mask], y=ys1[mask], c=color, s=2, cmap="jet")
+    ax1.axis('off')
 
-  fig.tight_layout()
-  ensure_dir('./ucn_outputs')
-  plt.savefig(f"./ucn_outputs/{filename:03d}.png", dpi=300)
+    fig.tight_layout()
+    ensure_dir('./ucn_outputs')
+    plt.savefig(f"./ucn_outputs/{filename:03d}.png", dpi=300)
+  else:
+    return x0[mask], y0[mask], xs1[mask], ys1[mask]

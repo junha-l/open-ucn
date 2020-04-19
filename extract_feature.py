@@ -1,15 +1,18 @@
+import argparse
+import glob
 import itertools
 import os.path as osp
-import argparse
+from urllib.request import urlretrieve
+
 import cv2
 import h5py
-from urllib.request import urlretrieve
-import glob
 import numpy as np
-
-from model.resunet import ResUNetBN2D2
-
 import torch
+
+from lib.util_2d import normalize_keypoint
+from model.resunet import ResUNetBN2D2
+from util.file import loadh5
+from util.visualization import visualize_image_correspondence
 
 
 def prep_image(full_path):
@@ -33,41 +36,74 @@ def random_sample(arr, n):
   return np.asarray(arr)[idx]
 
 
-def dump_feature(config):
-  img_glob = osp.join(config.source, '*/*/images/*.jpg')
-  imgs = glob.glob(img_glob)
-  print(f'grab {len(imgs)} images')
-
+def dump_correspondences(config):
+  # load model
   device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
   checkpoint = torch.load(config.weights)
   model = ResUNetBN2D2(1, 64, normalize_feature=True)
   model.load_state_dict(checkpoint['state_dict'])
   model.eval()
   model = model.to(device)
+  print("load model")
 
-  num_kp = config.num_kp
-  desc_name = f'ucn-{num_kp}'
+  # load dataset
+  source = config.source
+  with h5py.File(config.yfcc_path, 'r+') as ofp:
+    len_dset = len(ofp['coords'])
+    print("len dataset : ", len_dset)
 
-  for img_path in imgs:
-    img = prep_image(img_path)
-    F = model(to_normalized_torch(img, device))
-    filename = f'{img_path}.{desc_name}.h5'
-    F = F[0]
-    F = F.permute(2, 1, 0)
+    new_data = {}
+    new_data['ucn_coords'] = ofp.create_group('ucn_coords')
+    new_data['ucn_n_coords'] = ofp.create_group('ucn_n_coords')
 
-    nx, ny, nc = F.shape
-    kp = np.asarray(list(itertools.product(np.arange(nx), np.arange(ny))))
-    desc = F.reshape(-1, nc).cpu().numpy()
+    for i in range(len_dset):
+      idx = str(i)
+      coords = ofp['coords'][idx]
+      img_path0 = coords.attrs['img0']
+      img_path1 = coords.attrs['img1']
+      img_idx0 = int(coords.attrs['idx0']) + 1
+      img_idx1 = int(coords.attrs['idx1']) + 1
+      print(f"[{i}/{len_dset}] {img_path0}, {img_path1}")
 
-    kp = random_sample(kp, num_kp)
-    desc = random_sample(desc, num_kp)
+      # load & prepare calibration
+      calib_path0 = "/".join(img_path0.split("/")[:-2])
+      calib_path0 += f"/calibration/calibration_{img_idx0:06d}.h5"
+      calib_path1 = "/".join(img_path1.split("/")[:-2])
+      calib_path1 += f"/calibration/calibration_{img_idx1:06d}.h5"
 
-    with h5py.File(filename, 'w') as fp:
-      fp.create_dataset('kp', kp.shape, dtype=np.float32)
-      fp.create_dataset('desc', desc.shape, dtype=np.float32)
-      fp['kp'][:] = kp
-      fp['desc'][:] = desc
-  print(f"save {filename}")
+      calib0 = loadh5(osp.join(source, calib_path0))
+      calib1 = loadh5(osp.join(source, calib_path1))
+      K0, K1 = calib0['K'], calib1["K"]
+      imsize0, imsize1 = calib0['imsize'], calib1['imsize']
+
+      # load images & extract features
+      img0 = prep_image(osp.join(source, img_path0))
+      img1 = prep_image(osp.join(source, img_path1))
+      F0 = model(to_normalized_torch(img0, device))
+      F1 = model(to_normalized_torch(img1, device))
+
+      # build correspondences
+      x0, y0, x1, y1 = visualize_image_correspondence(
+          img0, img1, F0[0], F1[0], i, mode='gpu-all', config=config, visualize=False)
+
+      kp0 = np.stack((x0, y0), 1)
+      kp1 = np.stack((x1, y1), 1)
+
+      kp0 = random_sample(kp0, config.num_kp)
+      kp1 = random_sample(kp1, config.num_kp)
+      norm_kp0 = normalize_keypoint(kp0, K0, imsize0 * 0.5)[:, :2]
+      norm_kp1 = normalize_keypoint(kp1, K1, imsize1 * 0.5)[:, :2]
+
+      coords = np.concatenate((kp0, kp1), axis=1)
+      n_coords = np.concatenate((norm_kp0, norm_kp1), axis=1)
+
+      coords_data = new_data['ucn_coords'].create_dataset(
+          str(i), coords.shape, dtype=np.float32)
+      coords_data[:] = coords.astype(np.float32)
+      n_coords_data = new_data['ucn_n_coords'].create_dataset(
+          str(i), n_coords.shape, dtype=np.float32)
+      n_coords_data[:] = n_coords.astype(np.float32)
+      print(f"[{i}/{len_dset}] save {coords.shape}, {n_coords.shape} coordinate")
 
 
 if __name__ == '__main__':
@@ -94,6 +130,20 @@ if __name__ == '__main__':
       type=int,
       default=10000,
   )
+  parser.add_argument(
+      '--yfcc_path',
+      type=str,
+  )
+  parser.add_argument(
+      '--ucn_inlier_threshold_pixel',
+      type=float,
+      default=4,
+      help="Inlier threshold for hit test")
+  parser.add_argument(
+      '--nn_max_n',
+      type=int,
+      default=50
+      )
   config = parser.parse_args()
 
   if not osp.isfile('ResUNetBN2D2-YFCC100train.pth'):
@@ -103,4 +153,4 @@ if __name__ == '__main__':
         'ResUNetBN2D2-YFCC100train.pth')
 
   with torch.no_grad():
-    dump_feature(config)
+    dump_correspondences(config)

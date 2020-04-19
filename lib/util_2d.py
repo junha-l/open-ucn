@@ -23,7 +23,6 @@
 import warnings
 
 import cv2
-import cyvlfeat
 import numpy as np
 
 from util.file import loadh5
@@ -202,13 +201,6 @@ def get_feature_extractor(name, *args, **kwargs):
       return kp, desc
 
     extractor = sift_extractor
-  elif name == 'dsift':
-
-    def dsift_extractor(img):
-      kp, desc = cyvlfeat.sift.dsift(img, step=4, float_descriptors=True, fast=True)
-      return np.flip(kp, axis=1), desc
-
-    extractor = dsift_extractor
   else:
     raise NotImplementedError('Not implemented')
 
