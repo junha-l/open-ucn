@@ -44,28 +44,72 @@ def pdist(A, B, dist_type='L2', transposed=False):
 
 
 def find_nn_cpu(feat0, feat1, return_distance=False):
-  feat1tree = cKDTree(feat1)
-  dists, nn_inds = feat1tree.query(feat0, k=1, n_jobs=-1)
+  _feat0 = feat0.permute(1,0)
+  _feat1 = feat1.permute(1,0)
+  feat1tree = cKDTree(_feat1)
+  dists, nn_inds = feat1tree.query(_feat0, k=1, n_jobs=-1)
   if return_distance:
     return nn_inds, dists
   else:
     return nn_inds
 
+def swig_ptr_from_FloatTensor(x):
+    assert x.is_contiguous()
+    assert x.dtype == torch.float32
+    return faiss.cast_integer_to_float_ptr(
+        x.storage().data_ptr() + x.storage_offset() * 4)
+
+def swig_ptr_from_LongTensor(x):
+    assert x.is_contiguous()
+    assert x.dtype == torch.int64, 'dtype=%s' % x.dtype
+    return faiss.cast_integer_to_long_ptr(
+        x.storage().data_ptr() + x.storage_offset() * 8)
+
 def find_nn_faiss(F0, F1):
   D = F0.shape[0]
 
-  _F0 = F0.permute(1,0).reshape(-1,D)
-  _F1 = F1.permute(1,0).reshape(-1,D)
+  xq = F0.permute(1,0).reshape(-1,D)
+  xb = F1.permute(1,0).reshape(-1,D)
 
-  _F0 = _F0.cpu().numpy()
-  _F1 = _F1.cpu().numpy()
+  nq, d = xq.shape
+  if xq.is_contiguous():
+    xq_row_major = True
+  elif xq.t().is_contiguous():
+    xq = xq.t()
+    xq_row_major = False
 
-  index = faiss.IndexFlatL2(D)
-  index = faiss.index_cpu_to_all_gpus(index)
-  index.add(_F1)
+  xq_ptr = swig_ptr_from_FloatTensor(xq)
 
-  _, idx_list = index.search(_F0, 1)
-  return idx_list[:, 0]
+  nb, d2 = xb.shape
+  assert d == d2
+  if xb.is_contiguous():
+    xb_row_major = True
+  elif xb.t().is_contiguous():
+    xb = xb.t()
+    xb_row_major = False
+
+  xb_ptr = swig_ptr_from_FloatTensor(xb)
+
+  D = torch.empty(nq, 1, device=xb.device, dtype=torch.float32)
+  I = torch.empty(nq, 1, device=xb.device, dtype=torch.int64)
+
+  D_ptr = swig_ptr_from_FloatTensor(D)
+  I_ptr = swig_ptr_from_LongTensor(I)
+  
+  res = faiss.StandardGpuResources()
+  faiss.bruteForceKnn(res, faiss.METRIC_L2, xb_ptr, xb_row_major, nb, xq_ptr, xq_row_major, nq, d, 1, D_ptr, I_ptr)
+  
+  return I[:, 0].cpu().numpy()
+
+  # _F0 = _F0.cpu().numpy()
+  # _F1 = _F1.cpu().numpy()
+  
+  # index = faiss.IndexFlatL2(D)
+  # index = faiss.index_cpu_to_all_gpus(index)
+  # index.add(xb)
+
+  # _, idx_list = index.search(xq, 1)
+  # return idx_list[:, 0]
 
 def find_nn_gpu(F0, F1, nn_max_n=-1, return_distance=False, dist_type='SquareL2', transposed=False):
   """

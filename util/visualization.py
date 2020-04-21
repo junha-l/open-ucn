@@ -25,7 +25,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import lib.util_2d as util_2d
-from lib.eval import find_nn_gpu, find_nn_faiss
+from lib.eval import find_nn_gpu, find_nn_faiss, find_nn_cpu
 from util.file import ensure_dir
 
 
@@ -38,6 +38,7 @@ def visualize_image_correspondence(img0,
                                    config=None,
                                    visualize=True):
   use_stability_test = True
+  use_cyclic_test = False
   keypoint = 'sift'
   if keypoint == 'sift':
     sift = cv2.xfeatures2d.SIFT_create(
@@ -58,11 +59,6 @@ def visualize_image_correspondence(img0,
 
   H0, W0 = img0.shape
   H1, W1 = img1.shape
-
-  # if x0 is not None and len(x0) > config.num_kp:
-  #   mode = 'gpu-all'
-  # else:
-  #   mode = 'gpu-all-all'
 
   if mode == 'cpu-keypoints':
     matches1 = util_2d.feature_match(
@@ -149,9 +145,11 @@ def visualize_image_correspondence(img0,
     xs0 = (nn_inds0 % W0)
     ys0 = (nn_inds0 // W0)
 
-    # Filter out the points that fail the cycle consistency
-    dist_sq_nn = (x0 - xs0)**2 + (y0 - ys0)**2
-    mask = dist_sq_nn < (config.ucn_inlier_threshold_pixel**2)
+    if use_cyclic_test:
+      dist_sq_nn = (x0 - xs0)**2 + (y0 - ys0)**2
+      mask = dist_sq_nn < (config.ucn_inlier_threshold_pixel**2)
+    else:
+      mask = np.ones(len(x0)).astype(bool)
 
   elif mode == 'gpu-all-all':
     nn_inds1 = find_nn_faiss(
