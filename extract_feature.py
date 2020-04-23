@@ -82,19 +82,25 @@ def dump_correspondences(config):
   # load dataset
   source = config.source
   with h5py.File(config.target, 'r+') as ofp:
-    len_dset = len(ofp['coords'])
-    print("len dataset : ", len_dset)
-
     new_data = {}
     keys = ['ucn_coords', 'ucn_n_coords']
     for k in keys:
       if k in ofp.keys():
-        del ofp[k]
-      new_data[k] = ofp.create_group(k)
+        new_data[k] = ofp[k]
+      else:
+        new_data[k] = ofp.create_group(k)
+
+    len_dset = len(ofp['coords'])
+    keys = ofp['ucn_coords'].keys()
+    print("len dataset : ", len_dset)
 
     matching_timer, write_timer = Timer(), Timer()
     # extract correspondences
     for i in range(len_dset):
+      # skip existing pair
+      if str(i) in keys:
+        continue
+
       _coords = ofp['coords'][str(i)]
       img_path0 = _coords.attrs['img0']
       img_path1 = _coords.attrs['img1']
@@ -125,7 +131,7 @@ def dump_correspondences(config):
       n_coords_data[:] = n_coords.astype(np.float32)
       write_timer.toc()
       print(
-          f"[{i/len_dset * 100:>3d}] save {coords.shape} coordinate, matching {matching_timer.avg:.3f}, write {write_timer.avg:.3f}"
+          f"[{i}/{len_dset}] save {coords.shape} coordinate, matching {matching_timer.avg:.3f}, write {write_timer.avg:.3f}"
       )
 
 

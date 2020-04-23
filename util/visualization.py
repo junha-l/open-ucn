@@ -135,20 +135,24 @@ def visualize_image_correspondence(img0,
       xs1n = xs1
       ys1n = ys1
 
-    # Test reciprocity
-    nn_inds0 = find_nn_faiss(
-        F1[:, ys1n, xs1n],
-        F0.view(F0.shape[0], -1),
-    )
-
-    # Convert the index to coordinate: BxCxHxW
-    xs0 = (nn_inds0 % W0)
-    ys0 = (nn_inds0 // W0)
-
     if use_cyclic_test:
+      # Test reciprocity
+      nn_inds0 = find_nn_faiss(
+          F1[:, ys1n, xs1n],
+          F0.view(F0.shape[0], -1),
+      )
+
+      # Convert the index to coordinate: BxCxHxW
+      xs0 = (nn_inds0 % W0)
+      ys0 = (nn_inds0 // W0)
+
+      # Test cyclic consistency
       dist_sq_nn = (x0 - xs0)**2 + (y0 - ys0)**2
       mask = dist_sq_nn < (config.ucn_inlier_threshold_pixel**2)
+
     else:
+      xs0 = x0
+      ys0 = y0
       mask = np.ones(len(x0)).astype(bool)
 
   elif mode == 'gpu-all-all':
